@@ -7,7 +7,7 @@
 
   <Import Project="$(VSToolsPath)\DotNet\Microsoft.DotNet.Props" Condition="'$(VSToolsPath)' != ''" />
   <PropertyGroup Label="Globals">
-    <ProjectGuid>b8bb7346-1a1c-4a63-96c3-5caebd1aa190</ProjectGuid>
+    <ProjectGuid>db3eef2a-c852-424a-86fc-7c9eafa1f552</ProjectGuid>
     <RootNamespace>ManageVirtualNetworkAsync</RootNamespace>
     <BaseIntermediateOutputPath Condition="'$(BaseIntermediateOutputPath)'=='' ">.\obj</BaseIntermediateOutputPath>
     <OutputPath Condition="'$(OutputPath)'=='' ">.\bin\</OutputPath>
