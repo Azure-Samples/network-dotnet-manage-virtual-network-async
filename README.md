@@ -4,7 +4,7 @@ platforms: .Net
 author: hovsepm
 ---
 
-#Getting Started with Network - Manage Virtual Network Async - in .Net #
+# Getting Started with Network - Manage Virtual Network Async - in .Net #
 
          Azure Network sample for managing virtual networks.
           - Create a virtual network with Subnets
