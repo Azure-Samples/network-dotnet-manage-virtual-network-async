@@ -1,0 +1,4 @@
+C:\Sources\dotnet-samples\network-dotnet-manage-virtual-network-async\bin\Debug\net452\ManageVirtualNetworkAsync.runtimeconfig.json
+C:\Sources\dotnet-samples\network-dotnet-manage-virtual-network-async\bin\Debug\net452\ManageVirtualNetworkAsync.runtimeconfig.dev.json
+C:\Sources\dotnet-samples\network-dotnet-manage-virtual-network-async\obj\Debug\net452\ManageVirtualNetworkAsync.csproj.ManageVirtualNetworkAsync.exe.config
+C:\Sources\dotnet-samples\network-dotnet-manage-virtual-network-async\obj\Debug\net452\ManageVirtualNetworkAsync.csproj.CoreCompileInputs.cache
