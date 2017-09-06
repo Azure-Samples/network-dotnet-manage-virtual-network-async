@@ -1,2 +1,0 @@
-C:\Sources\dotnet-samples\network-dotnet-manage-virtual-network-async\bin\Debug\netstandard1.6\ManageVirtualNetworkAsync.deps.json
-C:\Sources\dotnet-samples\network-dotnet-manage-virtual-network-async\obj\Debug\netstandard1.6\ManageVirtualNetworkAsync.csproj.CoreCompileInputs.cache
