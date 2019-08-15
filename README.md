@@ -4,19 +4,19 @@ languages:
 - csharp
 products:
 - azure
-services: virtual-network
-platforms: dotnet
-author: yaohaizh
+extensions:
+- services: virtual-network
+- platforms: dotnet
 ---
 
 # Manage virtual networks in C# asynchronously - create a virtual network, create a virtual network with subnets, update a virtual network, list virtual networks, delete a virtual network #
 
-         Azure Network sample for managing virtual networks.
-          - Create a virtual network with Subnets
-          - Update a virtual network
-          - Create virtual machines in the virtual network subnets
-          - Create another virtual network
-          - List virtual networks
+ Azure Network sample for managing virtual networks.
+  - Create a virtual network with Subnets
+  - Update a virtual network
+  - Create virtual machines in the virtual network subnets
+  - Create another virtual network
+  - List virtual networks
 
 
 ## Running this Sample ##
