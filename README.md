@@ -11,7 +11,7 @@ description: "Azure Network sample for managing virtual networks."
 urlFragment: manage-networks-csharp-async
 ---
 
-# Manage virtual networks in C# asynchronously - create a virtual network, create a virtual network with subnets, update a virtual network, list virtual networks, delete a virtual network #
+# Manage virtual networks in C# asynchronously - create a virtual network, create a virtual network with subnets, update a virtual network, list virtual networks, delete a virtual network
 
  Azure Network sample for managing virtual networks.
   - Create a virtual network with Subnets
@@ -21,7 +21,7 @@ urlFragment: manage-networks-csharp-async
   - List virtual networks
 
 
-## Running this Sample ##
+## Running this Sample
 
 To run this sample:
 
@@ -35,7 +35,7 @@ Set the environment variable `AZURE_AUTH_LOCATION` with the full path for an aut
 
     bin\Debug\net452\ManageVirtualNetworkAsync.exe
 
-## More information ##
+## More information
 
 [Azure Management Libraries for C#](https://github.com/Azure/azure-sdk-for-net/tree/Fluent)
 [Azure .Net Developer Center](https://azure.microsoft.com/en-us/develop/net/)
