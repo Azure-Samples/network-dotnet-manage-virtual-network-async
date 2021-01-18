@@ -5,8 +5,8 @@ languages:
 products:
 - azure
 extensions:
-- services: virtual-network
-- platforms: dotnet
+  services: virtual-network
+  platforms: dotnet
 ---
 
 # Manage virtual networks in C# asynchronously - create a virtual network, create a virtual network with subnets, update a virtual network, list virtual networks, delete a virtual network #
