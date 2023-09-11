@@ -1,28 +1,21 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See License.txt in the project root for license information.
 
-using Microsoft.Azure.Management.Compute.Fluent;
-using Microsoft.Azure.Management.Compute.Fluent.Models;
-using Microsoft.Azure.Management.Fluent;
-using Microsoft.Azure.Management.Network.Fluent;
-using Microsoft.Azure.Management.Network.Fluent.Models;
-using Microsoft.Azure.Management.ResourceManager.Fluent;
-using Microsoft.Azure.Management.ResourceManager.Fluent.Core;
-using Microsoft.Azure.Management.Samples.Common;
-using System;
-using System.Threading.Tasks;
+using Azure;
+using Azure.Core;
+using Azure.Identity;
+using Azure.ResourceManager.Resources.Models;
+using Azure.ResourceManager.Samples.Common;
+using Azure.ResourceManager.Resources;
+using Azure.ResourceManager;
+using Azure.ResourceManager.Network;
+using Azure.ResourceManager.Network.Models;
 
 namespace ManageVirtualNetworkAsync
 {
     public class Program
     {
-        private static readonly string VNet1FrontEndSubnetName = "frontend";
-        private static readonly string VNet1BackEndSubnetName = "backend";
-        private static readonly string VNet1FrontEndSubnetNsgName = "frontendnsg";
-        private static readonly string VNet1BackEndSubnetNsgName = "backendnsg";
-        private static readonly string UserName = Utilities.CreateUsername();
-        private static readonly string SshKey = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCfSPC2K7LZcFKEO+/t3dzmQYtrJFZNxOsbVgOVKietqHyvmYGHEC0J2wPdAqQ/63g/hhAEFRoyehM+rbeDri4txB3YFfnOK58jqdkyXzupWqXzOrlKY4Wz9SKjjN765+dqUITjKRIaAip1Ri137szRg71WnrmdP3SphTRlCx1Bk2nXqWPsclbRDCiZeF8QOTi4JqbmJyK5+0UqhqYRduun8ylAwKKQJ1NJt85sYIHn9f1Rfr6Tq2zS0wZ7DHbZL+zB5rSlAr8QyUdg/GQD+cmSs6LvPJKL78d6hMGk84ARtFo4A79ovwX/Fj01znDQkU6nJildfkaolH2rWFG/qttD azjava@javalib.Com";
-        private static readonly string ResourceGroupName = SdkContext.RandomResourceName("rgNEMV", 24);
+        private static ResourceIdentifier? _resourceGroupId = null;
 
         /**
         * Azure Network sample for managing virtual networks.
@@ -32,16 +25,27 @@ namespace ManageVirtualNetworkAsync
         *  - Create another virtual network
         *  - List virtual networks
         */
-        public async static Task RunSampleAsync(IAzure azure)
+        public async static Task RunSampleAsync(ArmClient client)
         {
-            string vnetName1 = SdkContext.RandomResourceName("vnet1", 20);
-            string vnetName2 = SdkContext.RandomResourceName("vnet2", 20);
-            string frontEndVmName = SdkContext.RandomResourceName("fevm", 24);
-            string backEndVmName = SdkContext.RandomResourceName("bevm", 24);
-            string publicIpAddressLeafDnsForFrontEndVm = SdkContext.RandomResourceName("pip1", 24);
-            
+            string vnetName1 = Utilities.CreateRandomName("vnet1");
+            string vnetName2 = Utilities.CreateRandomName("vnet2");
+            string frontEndVmName = Utilities.CreateRandomName("fevm");
+            string backEndVmName = Utilities.CreateRandomName("bevm");
+            string publicIpAddressLeafDnsForFrontEndVm = Utilities.CreateRandomName("pip1");
+
             try
             {
+                // Get default subscription
+                SubscriptionResource subscription = await client.GetDefaultSubscriptionAsync();
+
+                // Create a resource group in the EastUS region
+                string rgName = Utilities.CreateRandomName("NetworkSampleRG");
+                Utilities.Log($"Creating resource group...");
+                ArmOperation<ResourceGroupResource> rgLro = await subscription.GetResourceGroups().CreateOrUpdateAsync(WaitUntil.Completed, rgName, new ResourceGroupData(AzureLocation.EastUS));
+                ResourceGroupResource resourceGroup = rgLro.Value;
+                _resourceGroupId = resourceGroup.Id;
+                Utilities.Log("Created a resource group with name: " + resourceGroup.Data.Name);
+
                 //============================================================
                 // Create a virtual network with specific address-space and two subnet
 
@@ -49,80 +53,105 @@ namespace ManageVirtualNetworkAsync
 
                 Utilities.Log("Creating a network security group for virtual network backend subnet...");
                 Utilities.Log("Creating a network security group for virtual network frontend subnet...");
-                
-                var backEndSubnetNsg = await azure.NetworkSecurityGroups
-                        .Define(VNet1BackEndSubnetNsgName)
-                        .WithRegion(Region.USEast)
-                        .WithNewResourceGroup(ResourceGroupName)
-                        .DefineRule("DenyInternetInComing")
-                            .DenyInbound()
-                            .FromAddress("INTERNET")
-                            .FromAnyPort()
-                            .ToAnyAddress()
-                            .ToAnyPort()
-                            .WithAnyProtocol()
-                            .Attach()
-                        .DefineRule("DenyInternetOutGoing")
-                            .DenyOutbound()
-                            .FromAnyAddress()
-                            .FromAnyPort()
-                            .ToAddress("INTERNET")
-                            .ToAnyPort()
-                            .WithAnyProtocol()
-                            .Attach()
-                        .CreateAsync();
-                
-                Utilities.Log("Created network security group");
-                // Print the network security group
-                Utilities.PrintNetworkSecurityGroup(backEndSubnetNsg);
 
-                var frontEndSubnetNsg = await azure.NetworkSecurityGroups.Define(VNet1FrontEndSubnetNsgName)
-                    .WithRegion(Region.USEast)
-                    .WithExistingResourceGroup(ResourceGroupName)
-                    .DefineRule("AllowHttpInComing")
-                        .AllowInbound()
-                        .FromAddress("INTERNET")
-                        .FromAnyPort()
-                        .ToAnyAddress()
-                        .ToPort(80)
-                        .WithProtocol(SecurityRuleProtocol.Tcp)
-                        .Attach()
-                    .DefineRule("DenyInternetOutGoing")
-                        .DenyOutbound()
-                        .FromAnyAddress()
-                        .FromAnyPort()
-                        .ToAddress("INTERNET")
-                        .ToAnyPort()
-                        .WithAnyProtocol()
-                        .Attach()
-                    .CreateAsync();
+                // Create NSG for backend
+                string backendNsgName = Utilities.CreateRandomName("backEndNSG");
+                NetworkSecurityGroupData backendNsgInput = new NetworkSecurityGroupData()
+                {
+                    Location = resourceGroup.Data.Location,
+                    SecurityRules =
+                    {
+                        new SecurityRuleData()
+                        {
+                            Name = "DenyInternetInComing",
+                            Protocol = SecurityRuleProtocol.Asterisk,
+                            SourcePortRange = "*",
+                            DestinationPortRange = "*",
+                            SourceAddressPrefix = "INTERNET",
+                            DestinationAddressPrefix = "*",
+                            Access = SecurityRuleAccess.Deny,
+                            Priority = 100,
+                            Direction = SecurityRuleDirection.Inbound,
+                        },
+                        new SecurityRuleData()
+                        {
+                            Name = "DenyInternetOutGoing",
+                            Protocol = SecurityRuleProtocol.Asterisk,
+                            SourcePortRange = "*",
+                            DestinationPortRange = "*",
+                            SourceAddressPrefix = "*",
+                            DestinationAddressPrefix = "internet",
+                            Access = SecurityRuleAccess.Deny,
+                            Priority = 200,
+                            Direction = SecurityRuleDirection.Outbound,
+                        }
+                    }
 
-                Utilities.Log("Created network security group");
-                // Print the network security group
-                Utilities.PrintNetworkSecurityGroup(frontEndSubnetNsg);
-                
+                };
+                var backendNsgLro = await resourceGroup.GetNetworkSecurityGroups().CreateOrUpdateAsync(WaitUntil.Completed, backendNsgName, backendNsgInput);
+                NetworkSecurityGroupResource backendNsg = backendNsgLro.Value;
+                Utilities.Log($"Created network security group: {backendNsg.Data.Name}");
+
+                // Create NSG for frontend
+                string frontendNsgName = Utilities.CreateRandomName("frontEndNSG");
+                NetworkSecurityGroupData frontendNsgInput = new NetworkSecurityGroupData()
+                {
+                    Location = resourceGroup.Data.Location,
+                    SecurityRules =
+                    {
+                        new SecurityRuleData()
+                        {
+                            Name = "AllowHttpInComing",
+                            Protocol = SecurityRuleProtocol.Tcp,
+                            SourcePortRange = "*",
+                            DestinationPortRange = "80",
+                            SourceAddressPrefix = "INTERNET",
+                            DestinationAddressPrefix = "*",
+                            Access = SecurityRuleAccess.Allow,
+                            Priority = 100,
+                            Direction = SecurityRuleDirection.Inbound,
+                        },
+                        new SecurityRuleData()
+                        {
+                            Name = "DenyInternetOutGoing",
+                            Protocol = SecurityRuleProtocol.Asterisk,
+                            SourcePortRange = "*",
+                            DestinationPortRange = "*",
+                            SourceAddressPrefix = "*",
+                            DestinationAddressPrefix = "internet",
+                            Access = SecurityRuleAccess.Deny,
+                            Priority = 200,
+                            Direction = SecurityRuleDirection.Outbound,
+                        }
+                    }
+                };
+                var frontendNsgLro = await resourceGroup.GetNetworkSecurityGroups().CreateOrUpdateAsync(WaitUntil.Completed, frontendNsgName, frontendNsgInput);
+                NetworkSecurityGroupResource frontendNsg = frontendNsgLro.Value;
+                Utilities.Log($"Created network security group: {frontendNsg.Data.Name}");
+
+                // Create virtual network
                 Utilities.Log("Creating virtual network #1...");
 
-                INetwork virtualNetwork1 = await azure.Networks.Define(vnetName1)
-                                .WithRegion(Region.USEast)
-                                .WithExistingResourceGroup(ResourceGroupName)
-                                .WithAddressSpace("192.168.0.0/16")
-                                .WithSubnet(VNet1FrontEndSubnetName, "192.168.1.0/24")
-                                .DefineSubnet(VNet1BackEndSubnetName)
-                                    .WithAddressPrefix("192.168.2.0/24")
-                                    .WithExistingNetworkSecurityGroup(backEndSubnetNsg)
-                                    .Attach()
-                                .CreateAsync();
-
-                Utilities.Log("Created a virtual network");
-                // Print the virtual network details
-                Utilities.PrintVirtualNetwork(virtualNetwork1);
+                string backendSubnetName = Utilities.CreateRandomName("besubnet");
+                VirtualNetworkData vnetInput1 = new VirtualNetworkData()
+                {
+                    Location = resourceGroup.Data.Location,
+                    AddressPrefixes = { "192.168.0.0/16" },
+                    Subnets =
+                    {
+                        new SubnetData() { AddressPrefix = "192.168.1.0/24", Name = frontendNsgName },
+                        new SubnetData() { AddressPrefix = "192.168.2.0/24", Name = backendSubnetName, NetworkSecurityGroup = backendNsg.Data }
+                    },
+                };
+                var vnetLro1 = resourceGroup.GetVirtualNetworks().CreateOrUpdate(WaitUntil.Completed, vnetName1, vnetInput1);
+                VirtualNetworkResource vnet1 = vnetLro1.Value;
+                Utilities.Log($"Created a virtual network: {vnet1.Data.Name}");
 
                 //============================================================
                 // Update a virtual network
-                
+
                 // Update the virtual network frontend subnet by associating it with network security group
-                
+
                 Utilities.Log("Associating network security group rule to frontend subnet");
 
                 await virtualNetwork1.Update()
@@ -193,10 +222,10 @@ namespace ManageVirtualNetworkAsync
                 Utilities.Log("Created a virtual network");
                 // Print the virtual network details
                 Utilities.PrintVirtualNetwork(virtualNetwork2);
-                
+
                 //============================================================
                 // List virtual networks
-                
+
                 foreach (var virtualNetwork in await azure.Networks.ListByResourceGroupAsync(ResourceGroupName))
                 {
                     Utilities.PrintVirtualNetwork(virtualNetwork);
@@ -212,10 +241,14 @@ namespace ManageVirtualNetworkAsync
             {
                 try
                 {
-                    Utilities.Log("Deleting Resource Group: " + ResourceGroupName);
-                    await azure.ResourceGroups.DeleteByNameAsync(ResourceGroupName);
-                    Utilities.Log("Deleted Resource Group: " + ResourceGroupName);
+                    if (_resourceGroupId is not null)
+                    {
+                        Utilities.Log($"Deleting Resource Group...");
+                        await client.GetResourceGroupResource(_resourceGroupId).DeleteAsync(WaitUntil.Completed);
+                        Utilities.Log($"Deleted Resource Group: {_resourceGroupId.Name}");
+                    }
                 }
+
                 catch (NullReferenceException)
                 {
                     Utilities.Log("Did not create any resources in Azure. No clean up is necessary");
@@ -227,23 +260,20 @@ namespace ManageVirtualNetworkAsync
             }
         }
 
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             try
             {
                 //=================================================================
                 // Authenticate
-                var credentials = SdkContext.AzureCredentialsFactory.FromFile(Environment.GetEnvironmentVariable("AZURE_AUTH_LOCATION"));
+                var clientId = Environment.GetEnvironmentVariable("CLIENT_ID");
+                var clientSecret = Environment.GetEnvironmentVariable("CLIENT_SECRET");
+                var tenantId = Environment.GetEnvironmentVariable("TENANT_ID");
+                var subscription = Environment.GetEnvironmentVariable("SUBSCRIPTION_ID");
+                ClientSecretCredential credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
+                ArmClient client = new ArmClient(credential, subscription);
 
-                var azure = Azure.Configure()
-                    .WithLogLevel(HttpLoggingDelegatingHandler.Level.Basic)
-                    .Authenticate(credentials)
-                    .WithDefaultSubscription();
-
-                // Print selected subscription
-                Utilities.Log("Selected subscription: " + azure.SubscriptionId);
-
-                RunSampleAsync(azure).GetAwaiter().GetResult();
+                await RunSample(client);
             }
             catch (Exception ex)
             {
