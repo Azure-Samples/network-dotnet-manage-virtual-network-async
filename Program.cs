@@ -51,10 +51,8 @@ namespace ManageVirtualNetworkAsync
 
                 // Creates a network security group for backend subnet
 
-                Utilities.Log("Creating a network security group for virtual network backend subnet...");
-                Utilities.Log("Creating a network security group for virtual network frontend subnet...");
-
                 // Create NSG for backend
+                Utilities.Log("Creating a network security group for virtual network backend subnet...");
                 string backendNsgName = Utilities.CreateRandomName("backEndNSG");
                 NetworkSecurityGroupData backendNsgInput = new NetworkSecurityGroupData()
                 {
@@ -93,6 +91,7 @@ namespace ManageVirtualNetworkAsync
                 Utilities.Log($"Created network security group: {backendNsg.Data.Name}");
 
                 // Create NSG for frontend
+                Utilities.Log("Creating a network security group for virtual network frontend subnet...");
                 string frontendNsgName = Utilities.CreateRandomName("frontEndNSG");
                 NetworkSecurityGroupData frontendNsgInput = new NetworkSecurityGroupData()
                 {
@@ -132,6 +131,7 @@ namespace ManageVirtualNetworkAsync
                 // Create virtual network
                 Utilities.Log("Creating virtual network #1...");
 
+                string frontendSubnetName = Utilities.CreateRandomName("fesubnet");
                 string backendSubnetName = Utilities.CreateRandomName("besubnet");
                 VirtualNetworkData vnetInput1 = new VirtualNetworkData()
                 {
@@ -139,11 +139,11 @@ namespace ManageVirtualNetworkAsync
                     AddressPrefixes = { "192.168.0.0/16" },
                     Subnets =
                     {
-                        new SubnetData() { AddressPrefix = "192.168.1.0/24", Name = frontendNsgName },
+                        new SubnetData() { AddressPrefix = "192.168.1.0/24", Name = frontendSubnetName },
                         new SubnetData() { AddressPrefix = "192.168.2.0/24", Name = backendSubnetName, NetworkSecurityGroup = backendNsg.Data }
                     },
                 };
-                var vnetLro1 = resourceGroup.GetVirtualNetworks().CreateOrUpdate(WaitUntil.Completed, vnetName1, vnetInput1);
+                var vnetLro1 = await resourceGroup.GetVirtualNetworks().CreateOrUpdateAsync(WaitUntil.Completed, vnetName1, vnetInput1);
                 VirtualNetworkResource vnet1 = vnetLro1.Value;
                 Utilities.Log($"Created a virtual network: {vnet1.Data.Name}");
 
@@ -154,87 +154,65 @@ namespace ManageVirtualNetworkAsync
 
                 Utilities.Log("Associating network security group rule to frontend subnet");
 
-                await virtualNetwork1.Update()
-                        .UpdateSubnet(VNet1FrontEndSubnetName)
-                            .WithExistingNetworkSecurityGroup(frontEndSubnetNsg)
-                            .Parent()
-                        .ApplyAsync();
-
+                vnetInput1 = new VirtualNetworkData()
+                {
+                    Location = resourceGroup.Data.Location,
+                    AddressPrefixes = { "192.168.0.0/16" },
+                    Subnets =
+                    {
+                        new SubnetData() { AddressPrefix = "192.168.1.0/24", Name = frontendSubnetName,  NetworkSecurityGroup = frontendNsg.Data },
+                        new SubnetData() { AddressPrefix = "192.168.2.0/24", Name = backendSubnetName, NetworkSecurityGroup = backendNsg.Data }
+                    },
+                };
+                vnetLro1 = await resourceGroup.GetVirtualNetworks().CreateOrUpdateAsync(WaitUntil.Completed, vnetName1, vnetInput1);
+                vnet1 = vnetLro1.Value;
                 Utilities.Log("Network security group rule associated with the frontend subnet");
-                // Print the virtual network details
-                Utilities.PrintVirtualNetwork(virtualNetwork1);
 
                 //============================================================
                 // Create a virtual machine in each subnet
 
                 // Creates the first virtual machine in frontend subnet
-                Utilities.Log("Creating a Linux virtual machine in the frontend subnet");
+                Utilities.Log("Creating a virtual machine in the frontend subnet");
+                SubnetData feSubnet = vnet1.Data.Subnets.First(item => item.Name == frontendSubnetName);
+                var frontEndVM = await Utilities.CreateVirtualMachine(resourceGroup, feSubnet.Id, frontEndVmName);
+                Utilities.Log($"Created VM: {frontEndVM.Data.Name}");
+
                 // Creates the second virtual machine in the backend subnet
-                Utilities.Log("Creating a Linux virtual machine in the backend subnet");
+                Utilities.Log("Creating a virtual machine in the backend subnet");
+                SubnetData beSubnet = vnet1.Data.Subnets.First(item => item.Name == backendSubnetName);
+                var backEndVM = await Utilities.CreateVirtualMachine(resourceGroup, beSubnet.Id, backEndVmName);
+                Utilities.Log($"Created VM: {backEndVM.Data.Name}");
+
                 // Create a virtual network with default address-space and one default subnet
                 Utilities.Log("Creating virtual network #2...");
 
-                var t1 = DateTime.UtcNow;
-
-                var frontEndVM = await azure.VirtualMachines.Define(frontEndVmName)
-                        .WithRegion(Region.USEast)
-                        .WithExistingResourceGroup(ResourceGroupName)
-                        .WithExistingPrimaryNetwork(virtualNetwork1)
-                        .WithSubnet(VNet1FrontEndSubnetName)
-                        .WithPrimaryPrivateIPAddressDynamic()
-                        .WithNewPrimaryPublicIPAddress(publicIpAddressLeafDnsForFrontEndVm)
-                        .WithPopularLinuxImage(KnownLinuxVirtualMachineImage.UbuntuServer16_04_Lts)
-                        .WithRootUsername(UserName)
-                        .WithSsh(SshKey)
-                        .WithSize(VirtualMachineSizeTypes.Parse("Standard_D2a_v4"))
-                        .CreateAsync();
-                var t2 = DateTime.UtcNow;
-                Utilities.Log("Created Linux VM: (took "
-                    + (t2 - t1).TotalSeconds + " seconds) " + frontEndVM);
-                // Print virtual machine details
-                Utilities.PrintVirtualMachine(frontEndVM);
-                t1 = DateTime.UtcNow;
-
-                var backEndVM = await azure.VirtualMachines.Define(backEndVmName)
-                        .WithRegion(Region.USEast)
-                        .WithExistingResourceGroup(ResourceGroupName)
-                        .WithExistingPrimaryNetwork(virtualNetwork1)
-                        .WithSubnet(VNet1BackEndSubnetName)
-                        .WithPrimaryPrivateIPAddressDynamic()
-                        .WithoutPrimaryPublicIPAddress()
-                        .WithPopularLinuxImage(KnownLinuxVirtualMachineImage.UbuntuServer16_04_Lts)
-                        .WithRootUsername(UserName)
-                        .WithSsh(SshKey)
-                        .WithSize(VirtualMachineSizeTypes.Parse("Standard_D2a_v4"))
-                        .CreateAsync();
-
-                var t3 = DateTime.UtcNow;
-                Utilities.Log("Created Linux VM: (took "
-                        + (t3 - t1).TotalSeconds + " seconds) " + backEndVM.Id);
-                // Print virtual machine details
-                Utilities.PrintVirtualMachine(backEndVM);
-
-                var virtualNetwork2 = await azure.Networks.Define(vnetName2)
-                        .WithRegion(Region.USEast)
-                        .WithNewResourceGroup(ResourceGroupName)
-                        .CreateAsync();
-
-                Utilities.Log("Created a virtual network");
-                // Print the virtual network details
-                Utilities.PrintVirtualNetwork(virtualNetwork2);
+                VirtualNetworkData vnetInput2 = new VirtualNetworkData()
+                {
+                    Location = resourceGroup.Data.Location,
+                    AddressPrefixes = { "10.10.0.0/16" },
+                    Subnets =
+                    {
+                        new SubnetData() { AddressPrefix = "10.10.1.0/24", Name = "default" },
+                    },
+                };
+                var vnetLro2 = await resourceGroup.GetVirtualNetworks().CreateOrUpdateAsync(WaitUntil.Completed, vnetName2, vnetInput2);
+                var vnet2 = vnetLro2.Value;
+                Utilities.Log($"Created a virtual network: {vnet2.Data.Name}");
 
                 //============================================================
                 // List virtual networks
 
-                foreach (var virtualNetwork in await azure.Networks.ListByResourceGroupAsync(ResourceGroupName))
+
+                Utilities.Log($"Get all virtual network under {resourceGroup.Data.Name}");
+                await foreach (var virtualNetwork in resourceGroup.GetVirtualNetworks().GetAllAsync())
                 {
-                    Utilities.PrintVirtualNetwork(virtualNetwork);
+                    Utilities.Log("\t" + virtualNetwork.Data.Name);
                 }
 
                 //============================================================
                 // Delete a virtual network
                 Utilities.Log("Deleting the virtual network");
-                await azure.Networks.DeleteByIdAsync(virtualNetwork2.Id);
+                await vnet2.DeleteAsync(WaitUntil.Completed);
                 Utilities.Log("Deleted the virtual network");
             }
             finally
@@ -273,7 +251,7 @@ namespace ManageVirtualNetworkAsync
                 ClientSecretCredential credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
                 ArmClient client = new ArmClient(credential, subscription);
 
-                await RunSample(client);
+                await RunSampleAsync(client);
             }
             catch (Exception ex)
             {
