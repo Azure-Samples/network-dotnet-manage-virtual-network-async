@@ -63,7 +63,7 @@ namespace Azure.ResourceManager.Samples.Common
             vmName = vmName is null ? Utilities.CreateRandomName("vm") : vmName;
             string nicName = Utilities.CreateRandomName("nic");
 
-            var subnetInput = new NetworkInterfaceData()
+            var nicInput = new NetworkInterfaceData()
             {
                 Location = resourceGroup.Data.Location,
                 IPConfigurations =
@@ -79,7 +79,7 @@ namespace Azure.ResourceManager.Samples.Common
                     }
                 }
             };
-            var networkInterfaceLro = await resourceGroup.GetNetworkInterfaces().CreateOrUpdateAsync(WaitUntil.Completed, nicName, subnetInput);
+            var networkInterfaceLro = await resourceGroup.GetNetworkInterfaces().CreateOrUpdateAsync(WaitUntil.Completed, nicName, nicInput);
             var nicId = networkInterfaceLro.Value.Data.Id;
 
             VirtualMachineCollection vmCollection = resourceGroup.GetVirtualMachines();
